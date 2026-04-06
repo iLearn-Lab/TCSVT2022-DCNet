@@ -68,10 +68,11 @@ MODEL:
     LABEL_SMOOTHING_LOSS: False
     FEATURE_EXTRACTOR: "RelationFeatureExtractor"
     #################### Select Relationship Model ####################
-    PREDICTOR: "HierMotifsE2E"
+    #PREDICTOR: "MotifPredictor"
     #PREDICTOR: "VCTreePredictor"
-    #PREDICTOR: "TransformerPredictor"
+    PREDICTOR: "TransformerPredictor"
     #PREDICTOR: "CausalAnalysisPredictor"
+    #PREDICTOR: "IMPPredictor"
     ################# Parameters for Motif Predictor ##################
     CONTEXT_OBJ_LAYER: 1
     CONTEXT_REL_LAYER: 1
@@ -108,9 +109,10 @@ SOLVER:
   GRAD_NORM_CLIP: 5.0
   STEPS: (10000, 16000)
   MAX_ITER: 40000
-  VAL_PERIOD: 2000
-  CHECKPOINT_PERIOD: 2000
+  VAL_PERIOD: 10000
+  CHECKPOINT_PERIOD: 5000
   PRINT_GRAD_FREQ: 4000
+  IMS_PER_BATCH: 1
   SCHEDULE:
     # the following paramters are only used for WarmupReduceLROnPlateau
     TYPE: "WarmupReduceLROnPlateau"    # WarmupMultiStepLR, WarmupReduceLROnPlateau
@@ -119,7 +121,6 @@ SOLVER:
     COOLDOWN: 0
     FACTOR: 0.1
     MAX_DECAY_STEP: 3
-OUTPUT_DIR: './output/relation_baseline'
 TEST:
   ALLOW_LOAD_FROM_CACHE: False
   RELATION:
@@ -127,4 +128,8 @@ TEST:
     REQUIRE_OVERLAP: False
     LATER_NMS_PREDICTION_THRES: 0.5
   CUSTUM_EVAL: False       # eval SGDet model on custum images, output a json
-  CUSTUM_PATH: '.'         # the folder that contains the custum images, only jpg files are allowed  
+  CUSTUM_PATH: '.'         # the folder that contains the custum images, only jpg files are allowed 
+  IMS_PER_BATCH: 1
+DONG:
+  SAVE_UNION_FEATURE: False
+OUTPUT_DIR: '/media/haibara/working/output/test2'
