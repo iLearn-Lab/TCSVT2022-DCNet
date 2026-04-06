@@ -2,6 +2,8 @@
 import logging
 import time
 import os
+import json
+import numpy as np
 
 import json
 import torch
@@ -20,14 +22,20 @@ def compute_on_dataset(model, data_loader, device, synchronize_gather=True, time
     model.eval()
     results_dict = {}
     cpu_device = torch.device("cpu")
-    torch.cuda.empty_cache()
+    # torch.cuda.empty_cache()
+    iters=0#controling 1005
+    # if json_save == True:
+    #     json_dict_all = {}
     for _, batch in enumerate(tqdm(data_loader)):
         with torch.no_grad():
+            # iters = iters+1#controling 1005
+            # if iters == 100:#controling 1005
+            #     break#controling 1005
             images, targets, image_ids = batch
             targets = [target.to(device) for target in targets]
             if timer:
                 timer.tic()
-            if cfg.TEST.BBOX_AUG.ENABLED:
+            if cfg.TEST.BBOX_AUG.ENABLED:#false, skip
                 output = im_detect_bbox_aug(model, images, device)
             else:
                 # relation detection needs the targets
@@ -36,7 +44,10 @@ def compute_on_dataset(model, data_loader, device, synchronize_gather=True, time
                 if not cfg.MODEL.DEVICE == 'cpu':
                     torch.cuda.synchronize()
                 timer.toc()
+
             output = [o.to(cpu_device) for o in output]
+
+
         if synchronize_gather:
             synchronize()
             multi_gpu_predictions = all_gather({img_id: result for img_id, result in zip(image_ids, output)})
@@ -47,7 +58,22 @@ def compute_on_dataset(model, data_loader, device, synchronize_gather=True, time
             results_dict.update(
                 {img_id: result for img_id, result in zip(image_ids, output)}
             )
-    torch.cuda.empty_cache()
+    # torch.cuda.empty_cache()
+
+    # print(json_save)
+    # exit(8)
+    '''controling 1012'''
+    # if json_save == True:
+    #     with open('/media/haibara/working/datasets/vg/1.json', 'w', encoding='utf-8') as f:
+    #         f.write(json.dumps(json_dict_all,ensure_ascii=False))
+    #         f.close()
+    #     exit(1)
+    '''controling 1012'''
+    # print(results_dict)
+    # print(results_dict[0])
+    # print(results_dict[0].field)
+    # exit(8)
+
     return results_dict
 
 
@@ -107,8 +133,18 @@ def inference(
     if load_prediction_from_cache:
         predictions = torch.load(os.path.join(output_folder, "eval_results.pytorch"), map_location=torch.device("cpu"))['predictions']
     else:
+        '''
+        controling: run this to get predictions
+        '''
         predictions = compute_on_dataset(model, data_loader, device, synchronize_gather=cfg.TEST.RELATION.SYNC_GATHER, timer=inference_timer)
     # wait for all processes to complete before measuring the time
+    # print(predictions)
+    # print(predictions[0].fields())
+    # for i in predictions[0].fields():
+    #     print('\n'+i)
+    #     print(predictions[0].get_field(i))
+    # exit(1)
+
     synchronize()
     total_time = total_timer.toc()
     total_time_str = get_time_str(total_time)
@@ -142,7 +178,7 @@ def inference(
         expected_results_sigma_tol=expected_results_sigma_tol,
     )
 
-    if cfg.TEST.CUSTUM_EVAL:
+    if cfg.TEST.CUSTUM_EVAL:#false, skip
         detected_sgg = custom_sgg_post_precessing(predictions)
         with open(os.path.join(cfg.DETECTED_SGG_DIR, 'custom_prediction.json'), 'w') as outfile:  
             json.dump(detected_sgg, outfile)
