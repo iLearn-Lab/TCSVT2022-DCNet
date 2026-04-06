@@ -5,16 +5,20 @@ Basic training script for PyTorch
 
 # Set up custom environment before nearly anything else is imported
 # NOTE: this should be the first import (no not reorder)
-from maskrcnn_benchmark.utils.env import setup_environment  # noqa F401 isort:skip
 
 import argparse
 import os
+import sys
 import time
 import datetime
-
 import torch
 from torch.nn.utils import clip_grad_norm_
 
+current_directory = os.path.dirname(os.path.abspath(__file__))
+root_path = os.path.abspath(os.path.dirname(current_directory) + os.path.sep + ".")
+sys.path.append(root_path)
+
+from maskrcnn_benchmark.utils.env import setup_environment  # noqa F401 isort:skip
 from maskrcnn_benchmark.config import cfg
 from maskrcnn_benchmark.data import make_data_loader
 from maskrcnn_benchmark.solver import make_lr_scheduler
@@ -31,6 +35,11 @@ from maskrcnn_benchmark.utils.logger import setup_logger, debug_print
 from maskrcnn_benchmark.utils.miscellaneous import mkdir, save_config
 from maskrcnn_benchmark.utils.metric_logger import MetricLogger
 
+#controling 1012
+from controling.Absolute_Path import abs_path, bu_jiang_wu_de, hei_an_sen_lin, ma_bao_guo
+#controling 1012
+
+# os.environ["CUDA_VISIBLE_DEVICES"] = "3"
 
 # See if we can use apex.DistributedDataParallel instead of the torch default,
 # and enable mixed-precision via apex.amp
@@ -41,15 +50,44 @@ except ImportError:
 
 
 def train(cfg, local_rank, distributed, logger):
-    debug_print(logger, 'prepare training')
-    model = build_detection_model(cfg) 
+    logger.info("***********************Step 1: loading models***********************")
+    # debug_print(logger, 'prepare training')
+    '''important: build model'''
+    model = build_detection_model(cfg)
+    #important
     debug_print(logger, 'end model construction')
+    logger.info("***********************Step 1: over***********************")
+    print('\n')
 
     # modules that should be always set in eval mode
     # their eval() method should be called after model.train() is called
     eval_modules = (model.rpn, model.backbone, model.roi_heads.box,)
- 
-    fix_eval_modules(eval_modules)
+
+    '''hgggggg'''
+    fix_total = 0
+    for ftt in eval_modules:
+        fix_total += sum(p.numel() for p in ftt.parameters())
+    print("Backbone params of whole model: %d" % (fix_total))
+    print("Backbone params of whole model: %.3fM" % (fix_total / 1e6))
+    print()
+    backbone_total = 0
+    for emo in (model.rpn, model.backbone, model.roi_heads.box,
+                model.roi_heads.relation.union_feature_extractor, model.roi_heads.relation.box_feature_extractor,):
+        backbone_total += sum(p.numel() for p in emo.parameters())
+    print("Backbone params of whole model: %d" % (backbone_total))
+    print("Backbone params of whole model: %.3fM" % (backbone_total / 1e6))
+    print()
+    para_total = sum(p.numel() for p in model.parameters())
+    print("Total params of whole model: %d" % (para_total))
+    print("Total params of whole model: %.3fM" % (para_total / 1e6))
+    print()
+    encoder_total = sum(p.numel() for p in model.roi_heads.relation.predictor.context_layer.parameters())
+    print("Total params of encoder: %d" % (encoder_total))
+    print("Total params of encoder: %.3fM" % (encoder_total / 1e6))
+
+    exit(1)
+
+    fix_eval_modules(eval_modules)#set all grad false, that is, stop training
 
     # NOTE, we slow down the LR of the layers start with the names in slow_heads
     if cfg.MODEL.ROI_RELATION_HEAD.PREDICTOR == "IMPPredictor":
@@ -68,9 +106,10 @@ def train(cfg, local_rank, distributed, logger):
 
     device = torch.device(cfg.MODEL.DEVICE)
     model.to(device)
-
+    logger.info("***********************Step 2: setting optimizer and shcedule***********************")
     num_gpus = int(os.environ["WORLD_SIZE"]) if "WORLD_SIZE" in os.environ else 1
     num_batch = cfg.SOLVER.IMS_PER_BATCH
+    logger.info("Training batch: %d" % num_batch)
     optimizer = make_optimizer(cfg, model, logger, slow_heads=slow_heads, slow_ratio=10.0, rl_factor=float(num_batch))
     scheduler = make_lr_scheduler(cfg, optimizer, logger)
     debug_print(logger, 'end optimizer and shcedule')
@@ -89,6 +128,8 @@ def train(cfg, local_rank, distributed, logger):
     debug_print(logger, 'end distributed')
     arguments = {}
     arguments["iteration"] = 0
+    logger.info("***********************Step 2: over***********************")
+    print('\n')
 
     output_dir = cfg.OUTPUT_DIR
 
@@ -96,15 +137,23 @@ def train(cfg, local_rank, distributed, logger):
     checkpointer = DetectronCheckpointer(
         cfg, model, optimizer, scheduler, output_dir, save_to_disk, custom_scheduler=True
     )
+
+    logger.info("***********************Step 3: loading pre-trained model***********************")
     # if there is certain checkpoint in output_dir, load it, else load pretrained detector
     if checkpointer.has_checkpoint():
-        extra_checkpoint_data = checkpointer.load(cfg.MODEL.PRETRAINED_DETECTOR_CKPT, 
+        debug_print(logger, 'start load checkpoint...')
+        extra_checkpoint_data = checkpointer.load(cfg.MODEL.PRETRAINED_DETECTOR_CKPT,
                                        update_schedule=cfg.SOLVER.UPDATE_SCHEDULE_DURING_LOAD)
         arguments.update(extra_checkpoint_data)
     else:
         # load_mapping is only used when we init current model from detection model.
+        debug_print(logger, 'start load pre-trained R-CNN...')
         checkpointer.load(cfg.MODEL.PRETRAINED_DETECTOR_CKPT, with_optim=False, load_mapping=load_mapping)
     debug_print(logger, 'end load checkpointer')
+    logger.info("***********************Step 3: over***********************")
+    print('\n')
+
+    logger.info("***********************Step 4: preparing data***********************")
     train_data_loader = make_data_loader(
         cfg,
         mode='train',
@@ -118,11 +167,16 @@ def train(cfg, local_rank, distributed, logger):
     )
     debug_print(logger, 'end dataloader')
     checkpoint_period = cfg.SOLVER.CHECKPOINT_PERIOD
+    logger.info("***********************Step 4: over***********************")
+    print('\n')
 
     if cfg.SOLVER.PRE_VAL:
-        logger.info("Validate before training")
+        logger.info("***********************Step 5: validation before training***********************")
         run_val(cfg, model, val_data_loaders, distributed, logger)
+        logger.info("***********************Step 5: over***********************")
+        print('\n')
 
+    logger.info("***********************Step training starts***********************")
     logger.info("Start training")
     meters = MetricLogger(delimiter="  ")
     max_iter = len(train_data_loader)
@@ -138,13 +192,16 @@ def train(cfg, local_rank, distributed, logger):
         iteration = iteration + 1
         arguments["iteration"] = iteration
 
+
         model.train()
         fix_eval_modules(eval_modules)
 
         images = images.to(device)
         targets = [target.to(device) for target in targets]
 
-        loss_dict = model(images, targets)
+        loss_dict = model(iteration, images, targets)
+        # print(loss_dict)
+        # print('')
 
         losses = sum(loss for loss in loss_dict.values())
 
@@ -158,7 +215,7 @@ def train(cfg, local_rank, distributed, logger):
         # Otherwise apply loss scaling for mixed-precision recipe
         with amp.scale_loss(losses, optimizer) as scaled_losses:
             scaled_losses.backward()
-        
+
         # add clip_grad_norm from MOTIFS, tracking gradient, used for debug
         verbose = (iteration % cfg.SOLVER.PRINT_GRAD_FREQ) == 0 or print_first_grad # print grad or not
         print_first_grad = False
@@ -173,7 +230,7 @@ def train(cfg, local_rank, distributed, logger):
         eta_seconds = meters.time.global_avg * (max_iter - iteration)
         eta_string = str(datetime.timedelta(seconds=int(eta_seconds)))
 
-        if iteration % 200 == 0 or iteration == max_iter:
+        if iteration % 100 == 0 or iteration == max_iter:
             logger.info(
                 meters.delimiter.join(
                     [
@@ -192,13 +249,13 @@ def train(cfg, local_rank, distributed, logger):
                 )
             )
 
-        if iteration % checkpoint_period == 0:
+        if iteration % checkpoint_period == 0 and iteration >= 20000:
             checkpointer.save("model_{:07d}".format(iteration), **arguments)
         if iteration == max_iter:
             checkpointer.save("model_final", **arguments)
 
         val_result = None # used for scheduler updating
-        if cfg.SOLVER.TO_VAL and iteration % cfg.SOLVER.VAL_PERIOD == 0:
+        if cfg.SOLVER.TO_VAL and iteration % cfg.SOLVER.VAL_PERIOD == 0 and iteration >= 20000:
             logger.info("Start validating")
             val_result = run_val(cfg, model, val_data_loaders, distributed, logger)
             logger.info("Validation Result: %.4f" % val_result)
@@ -220,6 +277,8 @@ def train(cfg, local_rank, distributed, logger):
             total_time_str, total_training_time / (max_iter)
         )
     )
+    logger.info("***********************Step training over***********************")
+    print('\n\n')
     return model
 
 def fix_eval_modules(eval_modules):
@@ -231,15 +290,15 @@ def fix_eval_modules(eval_modules):
 def run_val(cfg, model, val_data_loaders, distributed, logger):
     if distributed:
         model = model.module
-    torch.cuda.empty_cache()
+    # torch.cuda.empty_cache()
     iou_types = ("bbox",)
-    if cfg.MODEL.MASK_ON:
+    if cfg.MODEL.MASK_ON:#false, skip
         iou_types = iou_types + ("segm",)
-    if cfg.MODEL.KEYPOINT_ON:
+    if cfg.MODEL.KEYPOINT_ON:#false, skip
         iou_types = iou_types + ("keypoints",)
-    if cfg.MODEL.RELATION_ON:
+    if cfg.MODEL.RELATION_ON:#true
         iou_types = iou_types + ("relations", )
-    if cfg.MODEL.ATTRIBUTE_ON:
+    if cfg.MODEL.ATTRIBUTE_ON:#false, so skip
         iou_types = iou_types + ("attributes", )
 
     dataset_names = cfg.DATASETS.VAL
@@ -267,13 +326,13 @@ def run_val(cfg, model, val_data_loaders, distributed, logger):
     valid_result = gathered_result[gathered_result>=0]
     val_result = float(valid_result.mean())
     del gathered_result, valid_result
-    torch.cuda.empty_cache()
     return val_result
 
 def run_test(cfg, model, distributed, logger):
+    logger.info("***********************Step testing starts***********************")
     if distributed:
         model = model.module
-    torch.cuda.empty_cache()
+    # torch.cuda.empty_cache()
     iou_types = ("bbox",)
     if cfg.MODEL.MASK_ON:
         iou_types = iou_types + ("segm",)
@@ -306,13 +365,18 @@ def run_test(cfg, model, distributed, logger):
             logger=logger,
         )
         synchronize()
+        logger.info("***********************Step testing over***********************")
+        print('\n\n')
 
-
+'''
+main read over 1006
+'''
 def main():
     parser = argparse.ArgumentParser(description="PyTorch Relation Detection Training")
     parser.add_argument(
         "--config-file",
-        default="/home/hanxianjing/sgg22/Scene-Graph-Benchmark/configs/e2e_relation_DCNet.yaml",
+        default = abs_path + "configs/e2e_relation_X_101_32_8_FPN_1x.yaml",
+        # default=abs_path+"configs/e2e_relX_1x_transform.yaml",
         metavar="FILE",
         help="path to config file",
         type=str,
@@ -342,38 +406,46 @@ def main():
             backend="nccl", init_method="env://"
         )
         synchronize()
-
+    #load .yaml file 1004
     cfg.merge_from_file(args.config_file)
     cfg.merge_from_list(args.opts)
     cfg.freeze()
-
+    #load over 1004
     output_dir = cfg.OUTPUT_DIR
     if output_dir:
         mkdir(output_dir)
 
     logger = setup_logger("maskrcnn_benchmark", output_dir, get_rank())
+    #controling 1006 remind a new training stage
+    print('\n\n\n\n')
+    logger.info("---------------------------new training!---------------------------")
+    logger.info("***********************Step 0: loading configs***********************")
+    #controling 1006
     logger.info("Using {} GPUs".format(num_gpus))
     logger.info(args)
 
     logger.info("Collecting env info (might take some time)")
-    logger.info("\n" + collect_env_info())
 
     logger.info("Loaded configuration file {}".format(args.config_file))
-    with open(args.config_file, "r") as cf:
-        config_str = "\n" + cf.read()
-        logger.info(config_str)
-    logger.info("Running with config:\n{}".format(cfg))
 
     output_config_path = os.path.join(cfg.OUTPUT_DIR, 'config.yml')
     logger.info("Saving config into: {}".format(output_config_path))
     # save overloaded model config in the output directory
     save_config(cfg, output_config_path)
+    logger.info("***********************Step 0: over***********************")
+    print('\n')
+
+    if hei_an_sen_lin:
+        ma_bao_guo(3,8000)
 
     model = train(cfg, args.local_rank, args.distributed, logger)
 
     if not args.skip_test:
         run_test(cfg, model, args.distributed, logger)
 
+    if bu_jiang_wu_de:
+        while True:
+            run_test(cfg, model, args.distributed, logger)
 
 if __name__ == "__main__":
     main()
