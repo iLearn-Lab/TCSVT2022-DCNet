@@ -2,6 +2,7 @@
 import os
 
 from yacs.config import CfgNode as CN
+from controling.Absolute_Path import datasets_path
 
 
 # -----------------------------------------------------------------------------
@@ -37,8 +38,12 @@ _C.MODEL.CLS_AGNOSTIC_BBOX_REG = False
 # path
 _C.MODEL.WEIGHT = ""
 
-# checkpoint of detector, for relation prediction
-_C.MODEL.PRETRAINED_DETECTOR_CKPT = "/home/share/hanxianjing/sgg/vg/pretrained_faster_rcnn/model_final.pth"
+# checkpoint of detector, for relation prediction intial:NULL
+#1005 dong
+_C.MODEL.PRETRAINED_DETECTOR_CKPT = datasets_path+\
+                                    "vg/detector_model/pretrained_faster_rcnn/model_final.pth"
+# _C.MODEL.PRETRAINED_DETECTOR_CKPT = datasets_path+'checkpoints/pretrained_faster_rcnn/model_final.pth'
+#1005 dong
 
 # -----------------------------------------------------------------------------
 # INPUT
@@ -284,7 +289,7 @@ _C.MODEL.ROI_KEYPOINT_HEAD.SHARE_BOX_FEATURE_EXTRACTOR = True
 
 _C.MODEL.ROI_RELATION_HEAD = CN()
 # share box feature extractor should be set False for neural-motifs
-_C.MODEL.ROI_RELATION_HEAD.PREDICTOR = "MotifPredictor"
+_C.MODEL.ROI_RELATION_HEAD.PREDICTOR = "HierMotifsE2E"
 _C.MODEL.ROI_RELATION_HEAD.FEATURE_EXTRACTOR = "RelationFeatureExtractor"
 _C.MODEL.ROI_RELATION_HEAD.POOLING_ALL_LEVELS = True
 _C.MODEL.ROI_RELATION_HEAD.NUM_CLASSES = 51
@@ -298,9 +303,6 @@ _C.MODEL.ROI_RELATION_HEAD.CONTEXT_HIDDEN_DIM = 512
 _C.MODEL.ROI_RELATION_HEAD.CONTEXT_POOLING_DIM = 4096
 _C.MODEL.ROI_RELATION_HEAD.CONTEXT_OBJ_LAYER = 1  # assert >= 1
 _C.MODEL.ROI_RELATION_HEAD.CONTEXT_REL_LAYER = 1  # assert >= 1
-# DCNet
-_C.MODEL.ROI_RELATION_HEAD.USE_WEIGHTED_LOSS = False
-_C.MODEL.ROI_RELATION_HEAD.BPR_LOSS_FACTOR = 0.03
 
 _C.MODEL.ROI_RELATION_HEAD.TRANSFORMER = CN()
 # for TransformerPredictor only
@@ -482,7 +484,7 @@ _C.MODEL.FBNET.RPN_BN_TYPE = ""
 # Solver
 # ---------------------------------------------------------------------------- #
 _C.SOLVER = CN()
-_C.SOLVER.MAX_ITER = 50000
+_C.SOLVER.MAX_ITER = 40000
 
 _C.SOLVER.BASE_LR = 0.002
 _C.SOLVER.BIAS_LR_FACTOR = 2
@@ -510,15 +512,15 @@ _C.SOLVER.SCHEDULE.FACTOR = 0.5
 _C.SOLVER.SCHEDULE.MAX_DECAY_STEP = 7
 
 
-_C.SOLVER.CHECKPOINT_PERIOD = 5000
+_C.SOLVER.CHECKPOINT_PERIOD = 2500
 
 _C.SOLVER.GRAD_NORM_CLIP = 5.0
 
 _C.SOLVER.PRINT_GRAD_FREQ = 5000
 # whether validate and validate period
 _C.SOLVER.TO_VAL = True
-_C.SOLVER.PRE_VAL = False
-_C.SOLVER.VAL_PERIOD = 5000
+_C.SOLVER.PRE_VAL = True
+_C.SOLVER.VAL_PERIOD = 100
 
 # update schedule
 # when load from a previous model, if set to True
@@ -529,7 +531,9 @@ _C.SOLVER.UPDATE_SCHEDULE_DURING_LOAD = False
 # Number of images per batch
 # This is global, so if we have 8 GPUs and IMS_PER_BATCH = 16, each GPU will
 # see 2 images per batch
-_C.SOLVER.IMS_PER_BATCH = 10
+#1005 controling intial:16
+_C.SOLVER.IMS_PER_BATCH = 1
+#1005 controling
 
 # ---------------------------------------------------------------------------- #
 # Specific test options
@@ -540,7 +544,9 @@ _C.TEST.EXPECTED_RESULTS_SIGMA_TOL = 4
 # Number of images per batch
 # This is global, so if we have 8 GPUs and IMS_PER_BATCH = 16, each GPU will
 # see 2 images per batch
-_C.TEST.IMS_PER_BATCH = 10
+#1005 controling intial:8
+_C.TEST.IMS_PER_BATCH = 1
+#1005 controling
 # Number of detections per image
 _C.TEST.DETECTIONS_PER_IMG = 100
 
@@ -585,19 +591,24 @@ _C.TEST.CUSTUM_PATH = '.'
 # ---------------------------------------------------------------------------- #
 # Misc options
 # ---------------------------------------------------------------------------- #
-_C.OUTPUT_DIR = "/home/share/hanxianjing/sgg/checkpoints/DCNet/"
+#controling 1005 intial:null
+_C.OUTPUT_DIR = datasets_path+"output1007"
+#controling 1005
 _C.DETECTED_SGG_DIR = "."
-_C.GLOVE_DIR = "/home/share/hanxianjing/sgg/glove"
-
+#1005 controling intial:null
+_C.GLOVE_DIR = datasets_path+"glove"
+#1005 controling
 _C.PATHS_CATALOG = os.path.join(os.path.dirname(__file__), "paths_catalog.py")
-_C.PATHS_DATA = os.path.join(os.path.dirname(__file__), "/home/share/hanxianjing/sgg/")
+_C.PATHS_DATA = os.path.join(os.path.dirname(__file__), "../data/datasets")
 
 # ---------------------------------------------------------------------------- #
 # Precision options
 # ---------------------------------------------------------------------------- #
 
 # Precision of input, allowable: (float32, float16)
-_C.DTYPE = "float32"
+#controling 1005 intial:float32
+_C.DTYPE = "float16"
+#controling 1005
 
 # Enable verbosity in apex.amp
 _C.AMP_VERBOSE = False

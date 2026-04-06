@@ -11,9 +11,7 @@
 
 #include <ATen/ATen.h>
 #include <ATen/cuda/CUDAContext.h>
-
-#include <THC/THC.h>
-#include <THC/THCDeviceUtils.cuh>
+#include <ATen/cuda/CUDAEvent.h>
 
 #include <vector>
 #include <iostream>

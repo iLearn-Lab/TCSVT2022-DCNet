@@ -4,10 +4,7 @@
 // cyfu@cs.unc.edu
 #include <ATen/ATen.h>
 #include <ATen/cuda/CUDAContext.h>
-
-#include <THC/THC.h>
-#include <THC/THCAtomics.cuh>
-#include <THC/THCDeviceUtils.cuh>
+#include <ATen/ceil_div.h>
 
 #include <cfloat>
 
@@ -117,12 +114,12 @@ at::Tensor SigmoidFocalLoss_forward_cuda(
   auto losses_size = num_samples * logits.size(1);
   cudaStream_t stream = at::cuda::getCurrentCUDAStream();
 
-  dim3 grid(std::min(THCCeilDiv((long)losses_size, 512L), 4096L));
+  dim3 grid(std::min(at::ceil_div((long)losses_size, 512L), 4096L));
   
   dim3 block(512);
 
   if (losses.numel() == 0) {
-    THCudaCheck(cudaGetLastError());
+    AT_CUDA_CHECK(cudaGetLastError());
     return losses;
   }
 
@@ -137,7 +134,7 @@ at::Tensor SigmoidFocalLoss_forward_cuda(
 	 num_samples,
          losses.data<scalar_t>());
   });
-  THCudaCheck(cudaGetLastError());
+  AT_CUDA_CHECK(cudaGetLastError());
   return losses;   
 }	
 
@@ -162,11 +159,11 @@ at::Tensor SigmoidFocalLoss_backward_cuda(
   auto d_logits_size = num_samples * logits.size(1);
   cudaStream_t stream = at::cuda::getCurrentCUDAStream();
 
-  dim3 grid(std::min(THCCeilDiv((long)d_logits_size, 512L), 4096L));
+  dim3 grid(std::min(at::ceil_div((long)d_logits_size, 512L), 4096L));
   dim3 block(512);
 
   if (d_logits.numel() == 0) {
-    THCudaCheck(cudaGetLastError());
+    AT_CUDA_CHECK(cudaGetLastError());
     return d_logits;
   }
 
@@ -183,7 +180,7 @@ at::Tensor SigmoidFocalLoss_backward_cuda(
          d_logits.data<scalar_t>());
   });
 
-  THCudaCheck(cudaGetLastError());
+  AT_CUDA_CHECK(cudaGetLastError());
   return d_logits;   
 }	
 
